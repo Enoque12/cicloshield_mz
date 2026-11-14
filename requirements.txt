@@ -1,0 +1,10 @@
+streamlit>=1.35
+plotly>=5.20
+pandas
+numpy
+xarray
+zarrs
+zarr
+netCDF4
+requests
+earthaccess   # opcional: so para a chuva GPM IMERG (precisa de conta Earthdata gratuita)

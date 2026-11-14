@@ -1,0 +1,5 @@
+{
+  "demo": false,
+  "event": "Ciclone Freddy (2023)",
+  "sources": "IBTrACS v04r01 (NOAA); NOAA OISST v2.1 (AVHRR, 0.25 graus); GPM IMERG (NASA, via Source Coop)"
+}
