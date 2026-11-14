@@ -3,6 +3,7 @@ import json
 import math
 import unicodedata
 from .config import DATA
+from .textfix import read_text
 
 # Alfabeto basico GSM 03.38 e extensao (cada char da extensao conta 2)
 _GSM_BASIC = set(
@@ -13,8 +14,8 @@ _GSM_EXT = set("^{}\\[~]|€")
 
 # Portugues: texto base. Sena e Makhuwa: SEM traducao automatica -> validar com falante nativo.
 TEMPLATES = {
-    "pt": "ALERTA CICLONE {nome}: chega a {distrito} em cerca de {horas}h. "
-          "Va ao abrigo: {abrigo}. Leve documentos e agua. Evite pontes e rios. {contacto}",
+    "pt": "ALERTA {nome}: {nivel} em {distrito}, chega em ~{horas}h. "
+          "Va ao abrigo: {abrigo}. Leve documentos e agua. Evite rios e pontes. {contacto}",
     "sena": "[TRADUCAO SENA POR VALIDAR] {nome} {distrito} {horas}h {abrigo}",
     "makhuwa": "[TRADUCAO MAKHUWA POR VALIDAR] {nome} {distrito} {horas}h {abrigo}",
 }
@@ -27,7 +28,7 @@ def load_templates() -> dict:
     p = DATA / "translations.json"
     if p.exists():
         try:
-            t.update({k: v for k, v in json.loads(p.read_text()).items() if v})
+            t.update({k: v for k, v in json.loads(read_text(p)).items() if v})
         except Exception:
             pass
     return t
@@ -49,9 +50,9 @@ def sms_stats(text: str) -> dict:
 
 
 def build_message(template: str, nome: str, distrito: str, horas: int,
-                  abrigo: str, contacto: str, sem_acentos: bool) -> str:
-    msg = template.format(nome=nome, distrito=distrito, horas=horas,
-                          abrigo=abrigo, contacto=contacto).strip()
+                  abrigo: str, contacto: str, sem_acentos: bool, nivel: str = "alerta") -> str:
+    msg = template.format(nome=nome, distrito=distrito, horas=horas, abrigo=abrigo,
+                          contacto=contacto, nivel=nivel).strip()
     return strip_accents(msg) if sem_acentos else msg
 
 

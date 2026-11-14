@@ -1,10 +1,7 @@
-streamlit>=1.35
+# Necessario para correr a app (e para o deploy)
+streamlit>=1.50
 plotly>=5.20
 pandas
 numpy
 xarray
-zarrs
-zarr
 netCDF4
-requests
-earthaccess   # opcional: so para a chuva GPM IMERG (precisa de conta Earthdata gratuita)

@@ -216,7 +216,7 @@ def main():
     (DATA / "meta.json").write_text(json.dumps({
         "demo": False, "event": "Ciclone Freddy (2023)",
         "sources": "IBTrACS v04r01 (NOAA); " + ("NOAA OISST v2.1 (AVHRR, 0.25 graus)" if sst_src == "oisst" else "GHRSST MUR L4 (NASA JPL)") + "; GPM IMERG (NASA, via Source Coop)"},
-        ensure_ascii=False, indent=2))
+        ensure_ascii=False, indent=2), encoding="utf-8")
     print("Pronto. Corre: streamlit run app.py")
 
 

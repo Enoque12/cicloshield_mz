@@ -1,0 +1,6 @@
+# So para os scripts de download (scripts/fetch_freddy.py, make_districts.py). NAO e preciso no deploy.
+-r requirements.txt
+requests
+s3fs
+zarr>=3
+earthaccess   # opcional: so para SST MUR / chuva via Earthdata (conta gratuita)
