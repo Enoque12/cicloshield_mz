@@ -48,10 +48,6 @@ python scripts/make_districts.py --source geoboundaries   # limites dos distrito
 
 Preencher `data/forecast.csv`.
 
-### Deploy (Streamlit Community Cloud)
-
-Ligar o repositório, ficheiro principal `app.py`, e **fazer commit da pasta `data/`** (exceto `data/raw/`, ignorada). O deploy só usa `requirements.txt`.
-
 ---
 
 ## 4. Navegação na app
