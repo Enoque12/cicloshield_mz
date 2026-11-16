@@ -1,0 +1,28 @@
+{
+  "checked_at": "2026-11-16T07:46:18+00:00",
+  "errors": [],
+  "cmr": {
+    "request": "https://cmr.earthdata.nasa.gov/search/granules.json?short_name=GPM_3IMERGHH&version=07&temporal=2023-03-01T00%3A00%3A00Z%2C2023-03-12T23%3A59%3A59Z&bounding_box=30.0%2C-25.0%2C50.0%2C-10.0&page_size=1",
+    "hits": 576,
+    "first_granule": "GPM_3IMERGHH.07:3B-HHR.MS.MRG.3IMERG.20230301-S000000-E002959.0000.V07B.HDF5",
+    "collection": "GPM_3IMERGHH v07"
+  },
+  "eonet": {
+    "request": "https://eonet.gsfc.nasa.gov/api/v3/events?category=severeStorms&status=all&start=2023-02-01&end=2023-03-31",
+    "events": [
+      {
+        "id": "EONET_6321",
+        "title": "Tropical Cyclone Freddy",
+        "link": "https://eonet.gsfc.nasa.gov/api/v3/events/EONET_6321",
+        "positions": 136,
+        "first": "2023-02-06T06:00:00Z",
+        "last": "2023-03-12T00:00:00Z",
+        "sources": [
+          "EO",
+          "GDACS",
+          "JTWC"
+        ]
+      }
+    ]
+  }
+}

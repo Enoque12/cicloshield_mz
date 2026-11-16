@@ -163,19 +163,23 @@ def fetch_rain_zarr(start, end, path=ZARR_RAIN):
     acc.name = "rain_mm"
     acc.to_dataset().to_netcdf(DATA / "rain.nc")
     print(f"  chuva acumulada: max {float(acc.max()):.0f} mm, guardada em data/rain.nc")
+    return True
 
 
 def fetch_rain(start, end):
-    print("[3/3] Chuva GPM IMERG (opcional)...")
+    """Via OFICIAL NASA (Earthdata/GES DISC): pesquisa CMR + download autenticado. Precisa de conta gratuita."""
+    print("[3/3] Chuva GPM IMERG via NASA Earthdata (CMR + download)...")
     if not (os.getenv("EARTHDATA_USERNAME") and os.getenv("EARTHDATA_PASSWORD")):
-        print("  sem EARTHDATA_USERNAME/PASSWORD -> chuva ignorada (a app funciona sem ela).")
-        return
+        print("  sem EARTHDATA_USERNAME/PASSWORD -> via oficial indisponivel.")
+        return False
     import earthaccess
     earthaccess.login(strategy="environment")
-    res = earthaccess.search_data(short_name="GPM_3IMERGDL", version="07",
+    res = earthaccess.search_data(short_name="GPM_3IMERGDF", version="07",
                                   temporal=(start, end),
                                   bounding_box=(BBOX["lon_min"], BBOX["lat_min"],
                                                 BBOX["lon_max"], BBOX["lat_max"]))
+    if not res:
+        raise RuntimeError("CMR nao devolveu granulos GPM_3IMERGDF v07 para o periodo/area.")
     files = earthaccess.download(res, str(RAW))
     ds = xr.open_mfdataset(files, combine="by_coords")
     p = ds["precipitation"].sel(lat=slice(BBOX["lat_min"], BBOX["lat_max"]),
@@ -183,7 +187,8 @@ def fetch_rain(start, end):
     acc = p.sum("time", skipna=True).transpose("lat", "lon").load()
     acc.name = "rain_mm"
     acc.to_dataset().to_netcdf(DATA / "rain.nc")
-    print("  chuva acumulada guardada em data/rain.nc")
+    print(f"  {len(files)} ficheiros NASA; chuva acumulada guardada em data/rain.nc")
+    return True
 
 
 def ensure_forecast_template():
@@ -203,19 +208,26 @@ def main():
     DATA.mkdir(exist_ok=True); RAW.mkdir(parents=True, exist_ok=True)
     fetch_track(a.start, a.end)
     sst_src = fetch_sst(a.start, a.end, source=a.sst_source)
+    rain_src = None
     if not a.skip_rain:
-        try:
-            fetch_rain_zarr(a.start, a.end)
+        try:   # 1.o via oficial NASA (se houver credenciais Earthdata)
+            if fetch_rain(a.start, a.end):
+                rain_src = "NASA Earthdata (GES DISC)"
         except Exception as e:
-            print("  Zarr falhou:", e, "-> a tentar Earthdata...")
+            print("  via NASA falhou:", e)
+        if rain_src is None:   # 2.o espelho publico Zarr (dados NASA, de terceiros)
             try:
-                fetch_rain(a.start, a.end)
-            except Exception as e2:
-                print("  chuva falhou (nao bloqueia):", e2)
+                if fetch_rain_zarr(a.start, a.end):
+                    rain_src = "Source Cooperative Zarr (espelho de dados NASA GPM IMERG)"
+            except Exception as e:
+                print("  chuva falhou (nao bloqueia):", e)
     ensure_forecast_template()
+    sst_label = "NOAA OISST v2.1 (AVHRR, 0.25 graus)" if sst_src == "oisst" else "GHRSST MUR L4 (NASA JPL)"
     (DATA / "meta.json").write_text(json.dumps({
-        "demo": False, "event": "Ciclone Freddy (2023)",
-        "sources": "IBTrACS v04r01 (NOAA); " + ("NOAA OISST v2.1 (AVHRR, 0.25 graus)" if sst_src == "oisst" else "GHRSST MUR L4 (NASA JPL)") + "; GPM IMERG (NASA, via Source Coop)"},
+        "demo": False, "event": "Ciclone Freddy (2023)", "period": [a.start, a.end],
+        "sst_source": sst_label, "rain_source": rain_src,
+        "sources": "IBTrACS v04r01 (NOAA); " + sst_label + "; GPM IMERG (NASA)"
+                   + (f" via {rain_src}" if rain_src else " [chuva nao carregada]")},
         ensure_ascii=False, indent=2), encoding="utf-8")
     print("Pronto. Corre: streamlit run app.py")
 

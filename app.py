@@ -52,6 +52,25 @@ if meta.get("demo"):
 else:
     st.caption(f"Evento: {meta.get('event')} · Fontes: {meta.get('sources')}")
 
+prov = dt.load_provenance()
+rows_, headline_ = dt.data_summary(meta, sst, rain, track, fc)
+st.caption(headline_)
+with st.expander("🛰️ Sobre os dados: períodos, fontes e proveniência NASA"):
+    st.dataframe(pd.DataFrame(rows_), hide_index=True, width="stretch")
+    st.markdown("**Alinhamento no tempo.** Uma previsão emitida no instante *T* dá posições para *T+12 h … T+72 h*; "
+                "comparamos cada uma com a trajetória real (IBTrACS) **no mesmo instante**. A chuva é o acumulado de todo "
+                "o período (análise retrospetiva, não previsão de chuva).")
+    if prov:
+        st.markdown("**Verificação por APIs oficiais da NASA** (sem chave):")
+        if prov.get("cmr"):
+            c_ = prov["cmr"]
+            st.markdown(f"- **CMR (Earthdata):** {c_['hits']} ficheiros `{c_['collection']}` para o período e a área "
+                        f"(verificado em {prov['checked_at'][:10]}).")
+        for e_ in (prov.get("eonet") or {}).get("events", []):
+            st.markdown(f"- **EONET:** «{e_['title']}», {e_['positions']} posições, de {str(e_['first'])[:10]} a {str(e_['last'])[:10]}.")
+    else:
+        st.caption("Verificação NASA ainda não executada: `python scripts/nasa_api_check.py`.")
+
 tab1, tab_risk, tab2, tab3 = st.tabs(["🌊 Radar & Combustível Oceânico", "🗺️ Risco por região",
                                       "🔬 Simulador “E se…”", "📲 Alerta Comunitário"])
 RT = None   # tabela de risco (preenchida no separador de risco, usada no de alerta)
@@ -324,5 +343,3 @@ with tab3:
                 st.code(al.ussd_menu(nome, horas), language=None)
         else:
             st.info("Escolhe a região à esquerda e carrega em **Emitir Alerta**.")
-            
-st.markdown("<hr><div style='text-align:center; color:gray;'><small>🌍 TROPAS DO FUTURO ESPACIAL 🚀 · NASA Space Apps Challenge 2026</small></div>", unsafe_allow_html=True)
