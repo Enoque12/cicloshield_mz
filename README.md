@@ -32,8 +32,8 @@ Everything covers **1–12 March 2023**: Freddy's re-intensification in the Moza
 | Data | Source | Origin |
 |---|---|---|
 | Real track and wind | IBTrACS v04r01 | NOAA |
-| Rainfall (accumulated) | GPM IMERG Final, 0.1° | **NASA** |
-| Sea surface temperature | OISST v2.1, 0.25° | NOAA |
+| Rainfall (accumulated) | GPM IMERG Final, daily, V07, 0.1° | **NASA** |
+| Sea surface temperature | GHRSST MUR L4 v4.2 (MUR25), daily, 0.25° | **NASA** |
 | Predicted track | Public cyclone advisories, entered manually (issue times shown in the app) | Issuing agency |
 | District boundaries | geoBoundaries | Open data |
 
@@ -53,8 +53,8 @@ One-line requests:
 # EONET: Freddy event (no key)
 curl "https://eonet.gsfc.nasa.gov/api/v3/events?category=severeStorms&status=all&start=2023-02-01&end=2023-03-31"
 
-# CMR: number of GPM IMERG half-hourly files for 1-12 Mar 2023 over the Channel (no key)
-curl -sI "https://cmr.earthdata.nasa.gov/search/granules.json?short_name=GPM_3IMERGHH&version=07&temporal=2023-03-01T00:00:00Z,2023-03-12T23:59:59Z&bounding_box=30,-25,50,-10&page_size=1" | grep -i cmr-hits
+# CMR: number of GPM IMERG daily files for 1-12 Mar 2023 over the Channel (no key; expect 12)
+curl -sI "https://cmr.earthdata.nasa.gov/search/granules.json?short_name=GPM_3IMERGDF&version=07&temporal=2023-03-01T00:00:00Z,2023-03-12T23:59:59Z&bounding_box=30,-25,50,-10&page_size=1" | grep -i cmr-hits
 
 # Download a file (needs your free Earthdata token)
 curl -L -H "Authorization: Bearer $EARTHDATA_TOKEN" -O "<granule URL from CMR>"
@@ -68,9 +68,9 @@ granules = earthaccess.search_data(short_name="GPM_3IMERGDF", version="07",
                                    temporal=("2023-03-01", "2023-03-12"), bounding_box=(30, -25, 50, -10))
 ```
 
-- `scripts/fetch_freddy.py` uses the **official NASA route first** when Earthdata credentials are present, and otherwise falls back to a public Zarr mirror of the same GPM IMERG data.
+- `scripts/fetch_freddy.py` downloads rainfall (GPM IMERG) and sea surface temperature (MUR) through the **official NASA route** (Earthdata). If rainfall fails, it can fall back to a public Zarr mirror, which the script rejects when it is empty.
 - `python scripts/nasa_api_check.py` calls CMR and EONET (no key) and saves the result to `data/nasa_provenance.json`. The app **displays it in the "About the data" panel** and stays fully offline.
-- **Honest note:** sea surface temperature comes from NOAA OISST, not NASA. The NASA MUR product needs an Earthdata login and its server was not reachable from our network. Switching is one option: `--sst-source mur`.
+- **What is not NASA:** the cyclone track and wind (IBTrACS) come from NOAA. Rainfall and sea surface temperature are NASA products, downloaded with a free Earthdata login (`python scripts/fetch_freddy.py --sst-source mur-nasa`). NOAA OISST remains available as a fallback (`--sst-source oisst`).
 
 ## What we can and cannot claim
 
@@ -84,7 +84,7 @@ granules = earthaccess.search_data(short_name="GPM_3IMERGDF", version="07",
 
 **Done:** four-tab app that works offline; real track, rainfall and sea temperature for Freddy; forecast-error measurement; district risk levels with margin and backtest; SMS generator and simulated USSD; NASA provenance check.
 **In progress:** validated Sena/Makhuwa messages; official shelters and routes.
-**Next:** Ndau and community radio; evacuation routes; Idai/Chido validation; real USSD pilot with INGD/INAM and an operator; NASA MUR sea temperature.
+**Next:** Ndau and community radio; evacuation routes; Idai/Chido validation; real USSD pilot with INGD/INAM and an operator.
 
 ## Run locally
 
@@ -93,7 +93,9 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Real data (once, with internet): `pip install -r requirements-fetch.txt`, then `python scripts/fetch_freddy.py` and `python scripts/make_districts.py --source geoboundaries`. The app reads only local files in `data/`, so it works offline. If the yellow "demo data" banner appears, the data are synthetic.
+Real data (once, with internet): `pip install -r requirements-fetch.txt`, then `python scripts/fetch_freddy.py --sst-source mur-nasa` and `python scripts/make_districts.py --source geoboundaries`. The app reads only local files in `data/`, so it works offline. If the yellow "demo data" banner appears, the data are synthetic.
+
+**Credentials:** copy `.env.example` to `.env` and fill in your free Earthdata login (it is git-ignored). Only the download scripts need it; the deployed app does not.
 
 ## Repository
 
@@ -107,5 +109,5 @@ docs/                  team notes and previous README
 
 ## Credits
 
-Team: 🌍 TROPAS DO FUTURO ESPACIAL 🚀 · Matola / Maputo, Mozambique.
-Data: NASA GPM IMERG, NOAA IBTrACS, NOAA OISST, geoBoundaries, Natural Earth.
+Team: [team name] · Matola / Maputo, Mozambique.
+Data: NASA GPM IMERG, NASA GHRSST MUR, NOAA IBTrACS, geoBoundaries, Natural Earth.
