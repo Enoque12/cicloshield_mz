@@ -109,5 +109,5 @@ docs/                  notas da equipa e README anterior
 
 ## Créditos
 
-Equipa: [nome da equipa] · Matola / Maputo, Moçambique.
+Equipa: 🌍 TROPAS DO FUTURO ESPACIAL 🚀 · Maputo, Moçambique.
 Dados: NASA GPM IMERG, NASA GHRSST MUR, NOAA IBTrACS, geoBoundaries, Natural Earth.
