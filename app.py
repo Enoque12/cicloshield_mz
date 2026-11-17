@@ -52,6 +52,9 @@ if meta.get("demo"):
 else:
     st.caption(f"Evento: {meta.get('event')} · Fontes: {meta.get('sources')}")
 
+#if dt.forecast_looks_synthetic(fc):
+#   st.error("🚨 A previsão em `data/forecast.csv` parece **SINTÉTICA** (demonstração). O erro por prazo, a margem e o "
+#             "risco por região estão a usar números falsos. Substitui-a por avisos reais antes de apresentar.")
 prov = dt.load_provenance()
 rows_, headline_ = dt.data_summary(meta, sst, rain, track, fc)
 st.caption(headline_)
@@ -66,6 +69,9 @@ with st.expander("🛰️ Sobre os dados: períodos, fontes e proveniência NASA
             c_ = prov["cmr"]
             st.markdown(f"- **CMR (Earthdata):** {c_['hits']} ficheiros `{c_['collection']}` para o período e a área "
                         f"(verificado em {prov['checked_at'][:10]}).")
+        if prov.get("cmr_sst"):
+            c2_ = prov["cmr_sst"]
+            st.markdown(f"- **CMR (Earthdata):** {c2_['hits']} ficheiros `{c2_['collection']}` (temperatura do mar) para o período.")
         for e_ in (prov.get("eonet") or {}).get("events", []):
             st.markdown(f"- **EONET:** «{e_['title']}», {e_['positions']} posições, de {str(e_['first'])[:10]} a {str(e_['last'])[:10]}.")
     else:

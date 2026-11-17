@@ -129,18 +129,66 @@ def _fetch_sst_oisst_s3(start, end):
     return xr.concat(parts, dim="time")
 
 
+def _earthdata_login():
+    """Login Earthdata: variaveis de ambiente, ou ~/.netrc, ou pergunta uma vez e guarda no ~/.netrc."""
+    import earthaccess
+    from core.credentials import load_credentials
+    if load_credentials():
+        auth = earthaccess.login(strategy="environment")
+    else:
+        try:
+            auth = earthaccess.login(strategy="netrc")
+        except Exception:
+            auth = earthaccess.login(strategy="interactive", persist=True)
+    if not getattr(auth, "authenticated", True):
+        raise RuntimeError("Login Earthdata falhou. Confirma utilizador/palavra-passe.")
+
+
+def _fetch_sst_mur_nasa(start, end):
+    """NASA JPL PO.DAAC, MUR25-JPL-L4-GLOB-v04.2 (GHRSST MUR, 0.25 graus, diario). Precisa de conta Earthdata."""
+    import earthaccess
+    _earthdata_login()
+    res = earthaccess.search_data(short_name="MUR25-JPL-L4-GLOB-v04.2", temporal=(start, f"{end}T23:59:59"))
+    if not res:
+        raise RuntimeError("CMR nao devolveu granulos MUR25 v04.2 para o periodo.")
+    print(f"  {len(res)} ficheiros MUR25 encontrados; a descarregar...")
+    files = earthaccess.download(res, str(RAW))
+    parts = []
+    for f in sorted(files):
+        with xr.open_dataset(f) as ds:
+            da = ds["analysed_sst"].sel(lat=slice(BBOX["lat_min"], BBOX["lat_max"]),
+                                        lon=slice(BBOX["lon_min"], BBOX["lon_max"])).load()
+        parts.append(da.assign_coords(time=pd.to_datetime(da["time"].values).normalize()))
+    return xr.concat(parts, dim="time").sel(time=slice(start, end))
+
+
 def fetch_sst(start, end, stride=10, source="oisst"):
     print(f"[2/3] SST ({source})...")
-    da = _fetch_sst_oisst_s3(start, end) if source == "oisst" else _fetch_sst_mur(start, end, stride)
+    if source == "oisst":
+        da = _fetch_sst_oisst_s3(start, end)
+    elif source == "mur-nasa":
+        da = _fetch_sst_mur_nasa(start, end)
+    else:
+        da = _fetch_sst_mur(start, end, stride)
     mean_val = float(da.mean().compute().item())
-    if mean_val > 200:                 # Kelvin -> Celsius
-        da = da - 273.15
-    da.name = "sst"
+    if mean_val > 200:     
+        da.name = "sst"
     da.to_dataset().to_netcdf(DATA / "sst.nc")
     print(f"  SST ({source}) {dict(da.sizes)} guardada em data/sst.nc")
     return source
 
 ZARR_RAIN = "s3://us-west-2.opendata.source.coop/bkr/imerg/gpm_final.zarr"
+
+
+def _check_rain(acc, label):
+    """Recusa chuva sem dados: soma de NaN daria 0 mm e enganava a app."""
+    vals = acc.values
+    n = int(np.isfinite(vals).sum())
+    mx = float(np.nanmax(vals)) if n else float("nan")
+    if n == 0 or not mx > 0:
+        raise RuntimeError(f"{label}: sem chuva valida no periodo/area (celulas validas={n}, max={mx}). "
+                           "Nao guardei rain.nc.")
+    print(f"  chuva acumulada: max {mx:.0f} mm; {n} celulas validas")
 
 
 def fetch_rain_zarr(start, end, path=ZARR_RAIN):
@@ -158,36 +206,41 @@ def fetch_rain_zarr(start, end, path=ZARR_RAIN):
     print(f"  {sub.sizes['time']} passos de tempo carregados")
     if "mm/h" not in units.replace("/hr", "/h").replace(" ", "") and units != "?":
         print("  AVISO: unidades nao sao mm/h; confirma antes de somar!")
-    acc = (sub * 0.5).sum("time", skipna=True)       # mm/h x 0.5 h por passo = mm
+    if int(np.isfinite(sub.values).sum()) == 0:
+        raise RuntimeError("O Zarr tem o eixo do tempo mas todos os valores sao NaN neste periodo/area "
+                           "(espelho incompleto). Nao guardei rain.nc.")
+    acc = (sub * 0.5).sum("time", skipna=True, min_count=1)   # mm/h x 0.5 h por passo = mm
     acc = acc.rename({"latitude": "lat", "longitude": "lon"}).transpose("lat", "lon")
     acc.name = "rain_mm"
+    _check_rain(acc, "Zarr")
     acc.to_dataset().to_netcdf(DATA / "rain.nc")
-    print(f"  chuva acumulada: max {float(acc.max()):.0f} mm, guardada em data/rain.nc")
+    print("  guardada em data/rain.nc")
     return True
 
 
 def fetch_rain(start, end):
     """Via OFICIAL NASA (Earthdata/GES DISC): pesquisa CMR + download autenticado. Precisa de conta gratuita."""
     print("[3/3] Chuva GPM IMERG via NASA Earthdata (CMR + download)...")
-    if not (os.getenv("EARTHDATA_USERNAME") and os.getenv("EARTHDATA_PASSWORD")):
-        print("  sem EARTHDATA_USERNAME/PASSWORD -> via oficial indisponivel.")
-        return False
     import earthaccess
-    earthaccess.login(strategy="environment")
+    _earthdata_login()
     res = earthaccess.search_data(short_name="GPM_3IMERGDF", version="07",
-                                  temporal=(start, end),
+                                  temporal=(start, f"{end}T23:59:59"),
                                   bounding_box=(BBOX["lon_min"], BBOX["lat_min"],
                                                 BBOX["lon_max"], BBOX["lat_max"]))
     if not res:
         raise RuntimeError("CMR nao devolveu granulos GPM_3IMERGDF v07 para o periodo/area.")
     files = earthaccess.download(res, str(RAW))
-    ds = xr.open_mfdataset(files, combine="by_coords")
-    p = ds["precipitation"].sel(lat=slice(BBOX["lat_min"], BBOX["lat_max"]),
-                                lon=slice(BBOX["lon_min"], BBOX["lon_max"]))
-    acc = p.sum("time", skipna=True).transpose("lat", "lon").load()
+    parts = []
+    for f in sorted(files):          # um de cada vez: nao precisa de dask
+        with xr.open_dataset(f) as ds:
+            parts.append(ds["precipitation"].sel(lat=slice(BBOX["lat_min"], BBOX["lat_max"]),
+                                                 lon=slice(BBOX["lon_min"], BBOX["lon_max"])).load())
+    print(f"  {len(parts)} ficheiros NASA lidos (mm/dia)")
+    acc = xr.concat(parts, dim="time").sum("time", skipna=True, min_count=1).transpose("lat", "lon")
     acc.name = "rain_mm"
+    _check_rain(acc, "GPM NASA")
     acc.to_dataset().to_netcdf(DATA / "rain.nc")
-    print(f"  {len(files)} ficheiros NASA; chuva acumulada guardada em data/rain.nc")
+    print("  guardada em data/rain.nc")
     return True
 
 
@@ -198,14 +251,37 @@ def ensure_forecast_template():
         print("Criado data/forecast.csv vazio (preencher a mao com posicoes previstas).")
 
 
+def clean_stale(skip_rain):
+    """Evita misturar dados novos com ficheiros antigos ou SINTETICOS da demonstracao."""
+    from core.textfix import read_text
+    mp = DATA / "meta.json"
+    old_demo = False
+    if mp.exists():
+        try:
+            old_demo = bool(json.loads(read_text(mp)).get("demo"))
+        except Exception:
+            pass
+    if old_demo:
+        for f in ("rain.nc", "forecast.csv"):
+            if (DATA / f).exists():
+                (DATA / f).unlink()
+                print(f"  removido data/{f} (era sintetico, da demonstracao)")
+    elif not skip_rain and (DATA / "rain.nc").exists():
+        (DATA / "rain.nc").unlink()
+        print("  removido data/rain.nc antigo (vai ser refeito)")
+    if skip_rain and (DATA / "rain.nc").exists():
+        print("  AVISO: --skip-rain: o rain.nc existente NAO foi atualizado.")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--start", default=START)
     ap.add_argument("--end", default=END)
     ap.add_argument("--skip-rain", action="store_true")
-    ap.add_argument("--sst-source", choices=["oisst", "mur"], default="oisst")
+    ap.add_argument("--sst-source", choices=["oisst", "mur-nasa", "mur"], default="oisst")
     a = ap.parse_args()
     DATA.mkdir(exist_ok=True); RAW.mkdir(parents=True, exist_ok=True)
+    clean_stale(a.skip_rain)
     fetch_track(a.start, a.end)
     sst_src = fetch_sst(a.start, a.end, source=a.sst_source)
     rain_src = None
@@ -222,7 +298,9 @@ def main():
             except Exception as e:
                 print("  chuva falhou (nao bloqueia):", e)
     ensure_forecast_template()
-    sst_label = "NOAA OISST v2.1 (AVHRR, 0.25 graus)" if sst_src == "oisst" else "GHRSST MUR L4 (NASA JPL)"
+    sst_label = {"oisst": "NOAA OISST v2.1 (AVHRR, 0.25 graus)",
+                 "mur-nasa": "GHRSST MUR L4 v4.2, 0.25 graus (NASA JPL PO.DAAC)",
+                 "mur": "GHRSST MUR L4 (NASA JPL, via ERDDAP)"}[sst_src]
     (DATA / "meta.json").write_text(json.dumps({
         "demo": False, "event": "Ciclone Freddy (2023)", "period": [a.start, a.end],
         "sst_source": sst_label, "rain_source": rain_src,

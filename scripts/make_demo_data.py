@@ -43,7 +43,7 @@ fl = np.interp(fv.astype("int64"), real["time"].astype("int64"), real["lat"])
 fo = np.interp(fv.astype("int64"), real["time"].astype("int64"), real["lon"])
 lead = np.arange(1, len(fv) + 1)
 pd.DataFrame({"issued": issued, "valid": fv, "lat": fl + 0.25 * lead, "lon": fo + 0.35 * lead,
-              "wind_kt": 75}).to_csv(DATA / "forecast.csv", index=False)
+              "wind_kt": 75, "source": "SINTETICO (DEMO)"}).to_csv(DATA / "forecast.csv", index=False)
 
 (DATA / "meta.json").write_text(json.dumps({
     "demo": True, "event": "Ciclone Freddy (2023) - DADOS SINTETICOS DE DEMONSTRACAO",

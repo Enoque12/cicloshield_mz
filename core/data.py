@@ -88,10 +88,20 @@ def data_summary(meta, sst, rain, track, fc):
     ]
     if fc is not None:
         iss = ", ".join(sorted({pd.Timestamp(x).strftime("%d/%m %Hh UTC") for x in fc["issued"]}))
-        rows.append({"Dado": "Previsão da trajetória", "Fonte": "Avisos públicos, introduzidos à mão",
+        rows.append({"Dado": "Previsão da trajetória", "Fonte": ("; ".join(sorted(fc["source"].dropna().astype(str).unique())) if "source" in fc.columns and fc["source"].notna().any() else "Avisos públicos, introduzidos à mão"),
                      "Período": f"emitida em {iss}; válida de {_d(fc['valid'].min())} a {_d(fc['valid'].max())}", "Origem": "Agência do aviso"})
     else:
         rows.append({"Dado": "Previsão da trajetória", "Fonte": "—", "Período": "ainda não carregada", "Origem": "—"})
     headline = f"Período dos dados: {_d(sst_t.min())} a {_d(sst_t.max())}" + (
         f" · previsão emitida em {iss}" if fc is not None else " · sem previsão carregada")
     return rows, headline
+
+
+def forecast_looks_synthetic(fc) -> bool:
+    """True se forecast.csv parece o ficheiro SINTETICO da demonstracao."""
+    if fc is None:
+        return False
+    if "source" in fc.columns and fc["source"].astype(str).str.contains("SINT", case=False).any():
+        return True
+    w = fc["wind_kt"] if "wind_kt" in fc.columns else None
+    return bool(len(fc) == 6 and w is not None and (w == 75).all() and fc["issued"].nunique() == 1)

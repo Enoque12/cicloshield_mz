@@ -1,5 +1,11 @@
 {
   "demo": false,
   "event": "Ciclone Freddy (2023)",
-  "sources": "IBTrACS v04r01 (NOAA); NOAA OISST v2.1 (AVHRR, 0.25 graus); GPM IMERG (NASA, via Source Coop)"
+  "period": [
+    "2023-03-01",
+    "2023-03-12"
+  ],
+  "sst_source": "GHRSST MUR L4 v4.2, 0.25 graus (NASA JPL PO.DAAC)",
+  "rain_source": "NASA Earthdata (GES DISC)",
+  "sources": "IBTrACS v04r01 (NOAA); GHRSST MUR L4 v4.2, 0.25 graus (NASA JPL PO.DAAC); GPM IMERG (NASA) via NASA Earthdata (GES DISC)"
 }
